@@ -1,43 +1,52 @@
-# 云吞插件模板
+# 工作流自动化（n8n）
 
-开发流程见[插件开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md)。
+[n8n](https://n8n.io) 是画布式的工作流自动化：把几百种服务的现成节点连成流程，定时或事件触发，AI 也能作为节点参与。本插件用上游官方镜像 `n8nio/n8n`（按摘要固定），单容器，SQLite 存在插件数据目录，经云吞网关访问。
 
-这是一个能安装的示例插件 `app.example.hello`：使用 nginx 官方镜像显示问候页，经网关的 `sso: proxy` 注入用户名，页面显示“你好，<用户名>”。示例没有应用账号、持久化数据或 MCP 工具。
-
-## 示例文件
-
-| 路径 | 内容 |
-| --- | --- |
-| `docker-compose.yml` | 示例清单、nginx 服务和三个 `configs` |
-| `web/default.conf.template` | nginx 配置，启用 SSI 回显用户名并提供健康检查入口；只放行来自核心地址（`${WONTON_CORE_ADDRESS}`）的请求，其余来源 403 |
-| `web/index.html` | 问候页 |
-| `web/tokens.css` | 页面主题变量的后备值 |
-| `tabs/` | 示例主页的应用页面图标 |
-| `screenshots/home.png` | 商店详情页的示例截图 |
-| `scripts/smoke-probes.sh` | 检查真实页面和网关注入身份的插件探针 |
-
-从模板创建自己的插件后，替换示例清单、网页和素材；具体步骤见[写插件](https://github.com/wontonapp/wonton-docs/blob/main/develop.md#写插件)。
-
-## 对着别的栈跑探针
-
-`probes`、`api`、`session` 按 `.wonton/.env` 的 `WONTON_BASE_DOMAIN` 拼核心地址，`up` 起的栈自己写这个键。插件装进别人的栈、或者对着已有环境排查时，把那套栈的基础域名写进 `.wonton/.env`，不要只按实例名猜地址：实例名只是资源名前缀，网关按 Host 认域名，拼错了会回“没有安装”。
-
-```bash
-WONTON_BASE_DOMAIN=wonton.localhost
-```
-
-## 核心镜像
-
-检查和冒烟默认用套件里的核心镜像（`ghcr.io/wontonapp/wonton-core:main`）；要固定别的核心镜像，在仓库 Settings → Variables 设 `WONTON_CORE_IMAGE`，手动触发“检查”时填的 `core-image` 输入优先。
-
-## 更新开发套件
-
-```bash
-scripts/dev.sh kit-update
-```
-
-在从模板新建的插件仓库中更新套件；本仓库是套件源头，执行时只提示并退出。版本、可选引用和自定义脚本约定见[开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md#更新开发套件)。
+![icon](icon.svg)
 
 ## 图标
 
-`icon.svg` 是本仓库原创线条图标，按本仓库 MIT 许可证分发，见 [NOTICE](NOTICE)。
+`icon.svg` 用 n8n 官方符号标志（2026-10 品牌新版），来源、版权与商标说明见 [NOTICE](NOTICE)。
+
+## 装好后
+
+1. 打开插件网页，创建管理员账号（邮箱 + 自己定的密码，至少 8 位、含数字和大写字母）。
+2. 照模板搭第一条流程：编辑器里 Templates 面板选一个，或从空白画布开始。
+
+## 模型网关
+
+装了云吞模型网关时，凭据 **Wonton model gateway** 已自动备好（Base URL 和 key 已填）：流程里加 **OpenAI Chat Model** 之类节点，凭据选它即可。网关没接上时不预置；接上后（插件重建容器时）自动补上。想在别的 OpenAI 兼容服务商用自己的 key，照常在凭据里新建。
+
+key 只存在 n8n 数据库里（凭据加密存储，密钥由云吞生成保管），不出现在本插件任何面向用户的文字里。
+
+## 云吞工具总线
+
+流程里用 **MCP Client Tool** 节点可以调用家里其他应用提供的工具：Endpoint URL 填表达式 `{{ $env.WONTON_MCP_URL }}`，Authentication 选 None（总线按来源网络识别，无需令牌）。
+
+## 反向（把 n8n 工作流暴露给云吞 Agent）
+
+n8n 的实例级 MCP 服务（`/mcp-server/http`）要求先登录再生成个人访问令牌，令牌无法在装插件时由云吞代填，所以本插件不声明 MCP 入口。想给云吞的 Agent 用 n8n 工作流时，需要用户自己打开 n8n 的实例级 MCP 并生成令牌——这条路径目前接不进云吞的工具总线（见插件 PR 的“底座的问题”）。
+
+## Webhook 与外部回调
+
+工作流的 webhook 地址指向云吞网关（`N8N_WEBHOOK_URL` = 插件公开地址）。这意味着：
+
+- 编辑器里的 Test workflow、用户浏览器主动访问：正常。
+- **外部服务回调（GitHub、Telegram 这类主动推事件给你）收不到**：网关要求登录会话，外部调用方没有。这是云吞插件网关模型对“需要公网回调”的应用的普遍限制。
+
+## 其他说明
+
+- 社区节点（Community Nodes）默认开启；安装走 npm，经云吞的出网代理。
+- 遥测（Diagnostics）、版本更新提示、注册问卷、招聘横幅都已关闭；编辑器里的工作流模板（Templates）仍会访问 n8n.io 的公共模板库。
+- 找回密码邮件发到注册时填的邮箱：只有真实邮箱收得到，云吞内部邮箱不收外站来信。
+- n8n 能按流程运行代码、访问外网和凭据里存的密钥，请像对待管理员权限一样对待它。
+- 上游许可证是 Sustainable Use License（非 OSI 的 fair-code 许可，SPDX：`SUL-1.0`），全文见 [NOTICE](NOTICE)；插件包本身是 MIT。
+- 移动端：n8n 编辑器在手机竖屏下能打开、能看执行结果，画布编辑未获官方移动支持，复杂流程建议在桌面调好。
+
+## 权限
+
+| 权限 | 用途 |
+| --- | --- |
+| `network.egress` | 流程调外部服务、装社区节点、拉工作流模板 |
+| `models` | AI 节点走云吞模型网关 |
+| `tools` | MCP Client Tool 节点调用云吞工具总线 |

@@ -1,61 +1,64 @@
 # shellcheck shell=bash
-# scripts/smoke.sh 的一项一项探测，跟着插件走。没写的项会 FAIL 并给出写法，不会默认放行。
+# n8n：sso=none，应用自己管账号（第一次打开自己注册管理员，冒烟会话里没有 n8n 登录态）；
+# 清单没有 mcp 入口（实例级 MCP 的令牌要登录后才能生成，见 README）。
 #
-# 变量别叫 state：shellcheck 把这份文件连着 probes.sh 一起分析，probes.sh 自己也读一个 dev.sh 提供的 state；
-# 子壳体函数（fn() ( … )）里给 state 赋值，SC2031 就报在 probes.sh 上，CI 红。
-#
-# 变量：SMOKE_WEB_URL 是应用的网页入口（套件已去尾斜杠，但可能带路径，比如 SSO 登录页）；
-#       拼 API 路径用 SMOKE_WEB_ORIGIN（只有 scheme://host:port，入口的路径不掺进来），别直接接在 SMOKE_WEB_URL 后面。
-#
-# 页面：web_assert 从标准输入读页面，命中的确是应用的真实页面时返回 0。
-# 身份：identity_check 只证明身份：用应用自己的“当前用户”接口断言认出的是用户管理员，不碰应用里的数据。
-#       数据断言（是否配置过、有几条、内容对不对）全部交给 data_write / data_check：冒烟第 1 项会先装升级
-#       起点写数据，身份探针再断言“数据目录是空的”就会红。接口回字段时也只看类型（如 configured 是布尔、
-#       nodes 是数字），值和条数留给 data_check。
-#       没有用户体系时写 IDENTITY_NA=1，并在 SMOKE_NOTE 里写原因。dweb / web_get 是带用户会话的请求助手，可继续走应用自己的登录链。
-#       SSO 登录跳转不用自己写表单逻辑：dweb --sso 会从清单 webui.path 的入口出发（没写就是 /），提交核心
-#       登录页的 JS 自动表单并跟完重定向，返回的页面已带应用的登录态。
-# 工具：MCP_TOOL 写一个只读工具名（可带插件前缀），MCP_ARGS 是 JSON 参数；mcp_assert 从标准输入读调用结果。
-#       要断言多个工具时改成写 mcp_check；调用前要备数据时写 before_mcp。
-# 通知房间：申请了 notify 的插件把通知交给核心，核心以核心账号发进和主人的“Wonton”私聊。
-#       探针以主人身份读这个房间：probes_owner_room_wait <超时秒> <要找的文字> 等到开始之后发来的、包含这段文字的
-#       消息就返回 0，超时列出看到的最新消息并返回非 0。要先把等待挂到后台再发通知，否则消息可能在等待开始前就到：
-#         room_wait() {
-#           local marker="probe-$RANDOM" url
-#           url="$(docker exec "wonton-$SMOKE_INSTANCE--${SMOKE_PLUGIN_ID//./-}--web" printenv WONTON_NOTIFY_URL)"
-#           probes_owner_room_wait 120 "$marker" & local pid=$!
-#           docker exec "wonton-$SMOKE_INSTANCE--${SMOKE_PLUGIN_ID//./-}--web" wget -q -O /dev/null \
-#             --header 'Content-Type: application/json' --post-data "{\"title\":\"$marker\"}" "$url"
-#           wait "$pid"
-#         }
-#       上面的 web 换成插件里能发 HTTP 的服务；wget 换成那个服务里有的客户端。
-# 数据：合并前要验证“升级/重装不丢用户数据”时写 data_write 和 data_check（两个都写才跑）：data_write 用随机标记写
-#       一条数据并把标记原样存进 $SMOKE_STATE，data_check 读回标记去应用里找，对不上就打印看到了什么并返回非 0。
-#       应用不存用户数据时写 DATA_NA=1（两项记 N/A）。
-# 装之前要准备（如先配出口代理）：写 before_install。
+# 数据：数据探针走应用自己的 CLI（import/export:workflow），不需要应用登录态；
+# 导入的是普通工作流（未激活，不执行任何节点），重装后还在即为通过。
 
-web_assert() { grep -q '你好'; }   # 示例页的标题
+web_assert() { grep -qi '<title>n8n'; }   # 标准输入：编辑器 SPA 的 HTML，标题带 n8n
 
-identity_check() { # 页面回显的就是网关注入的用户名；示例页不存数据，也不拿数据判断身份
-  local page
-  page="$(dweb /)" || { echo "页面失败：$page"; return 1; }
-  grep -qF "你好，$SMOKE_OWNER" <<<"$page" || { echo "页面没回显用户 $SMOKE_OWNER：$(head -c 120 <<<"$page")"; return 1; }
+# 身份：GET /rest/login 带云吞会话（SMOKE_JAR）但不带 n8n 会话。断言回应的是应用自己的 401
+#（body 是 {"status":"error",...}，不是网关的 {"error":{"category":...}}）：请求穿过了网关到达
+# 应用，应用又在坚持自己的登录，没有因为云吞会话放行。
+identity_check() {
+  local body rc=0
+  body="$(web_get /rest/login)" || rc=$?
+  # curl --fail-with-body 在 401 时返回 22，body 照常输出
+  if [[ $rc -ne 0 && $rc -ne 22 ]]; then echo "请求失败（rc=$rc）：$body"; return 1; fi
+  grep -q '"status":"error"' <<<"$body" || { echo "期待应用自己的 401，得到：$(head -c 200 <<<"$body")"; return 1; }
+  grep -q '"message":"Unauthorized"' <<<"$body" || { echo "401 内容不像应用回的：$(head -c 200 <<<"$body")"; return 1; }
 }
 
-# 数据：合并前要验证“升级/重装不丢用户数据”时写 data_write 和 data_check（两个都写才跑）：
-#   data_write 用随机标记写一条数据，把标记原样覆盖写进 $SMOKE_STATE（一个已建好的空文件，不是目录）；data_check 读回标记、去应用里找，
-#   找不到就打印看到了什么并返回非 0。
-# 应用不存用户数据时写 DATA_NA=1（两项记 N/A）。模板的示例页不存数据，所以这里是不适用。
-# 数据要写进插件容器时（Agent 插件的工作区标记等），容器名别自己拼：钩子契约里没有 SMOKE_SLUG，e2e 套件的
-# data_write 又跑在实例名导出之前，拼出来的名字缺段（No such container）；Bot 服务（清单声明了 bots）每个 Bot
-# 一组容器，名字还带 --<Bot 名> 后缀。按核心打的标签找，插件自带 smoke 和 e2e 套件两个运行环境都成立
-# （实例名没导出时按 SMOKE_BASE 的主机名第一段推）：
-#   _container() { # <插件 id> <服务名>：本实例里这个服务的容器
-#     local inst="${SMOKE_INSTANCE:-}" args=(--filter "label=wonton.plugin=$1" --filter "label=wonton.service=$2")
-#     if [[ -z "$inst" && -n "${SMOKE_BASE:-}" ]]; then
-#       inst="${SMOKE_BASE#http://}"; inst="${inst%%.*}"
-#     fi
-#     [[ -z "$inst" ]] || args+=(--filter "label=wonton.instance=${inst//-/}")
-#     docker ps --format '{{.Names}}' "${args[@]}" | head -1
-#   }
-export DATA_NA=1
+_n8n_container() { # 本实例里 n8n 服务的容器（按核心打的标签找，smoke 和 dev probes 两个运行环境都成立）
+  local inst="${SMOKE_INSTANCE:-}" args=(--filter "label=wonton.plugin=${SMOKE_PLUGIN_ID:-io.n8n.n8n}" --filter "label=wonton.service=n8n")
+  if [[ -z "$inst" && -n "${SMOKE_BASE:-}" ]]; then
+    inst="${SMOKE_BASE#http://}"; inst="${inst%%.*}"
+  fi
+  [[ -z "$inst" ]] || args+=(--filter "label=wonton.instance=${inst//-/}")
+  docker ps --format '{{.Names}}' "${args[@]}" | head -1
+}
+
+# 探针在容器里跑 CLI：清掉代理变量，数据库路径不读这些，避免 busybox/网络库误走出口代理。
+_n8n_cli() { # <容器> <参数…>
+  local container="$1"; shift
+  docker exec -e HOME=/home/node -e HTTP_PROXY= -e HTTPS_PROXY= -e http_proxy= -e https_proxy= \
+    -e ALL_PROXY= -e all_proxy= "$container" "$@"
+}
+
+marker_file() { # SMOKE_STATE 在套件里是状态目录（e2e 传的是标记文件本身），标记放对应路径
+  if [[ -d "$SMOKE_STATE" ]]; then printf '%s' "$SMOKE_STATE/n8n-marker"; else printf '%s' "${SMOKE_STATE}.marker"; fi
+}
+
+data_write() {
+  local container marker
+  [[ -n "${SMOKE_STATE:-}" ]] || { echo "SMOKE_STATE 没设"; return 1; }
+  container="$(_n8n_container)"
+  [[ -n "$container" ]] || { echo "找不到 n8n 容器（wonton.instance 标签）"; return 1; }
+  marker="wonton-smoke-$(od -An -N4 -tx4 /dev/urandom | tr -d ' \n')"
+  printf '[{"name":"%s","nodes":[{"parameters":{},"id":"1","name":"Start","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[0,0]}],"connections":{},"active":false,"settings":{}}]' "$marker" |
+    _n8n_cli "$container" n8n import:workflow --input=/dev/stdin >/dev/null ||
+    { echo "导入工作流失败"; return 1; }
+  printf '%s' "$marker" >"$(marker_file)"
+}
+
+data_check() {
+  local container marker out
+  container="$(_n8n_container)"
+  [[ -n "$container" ]] || { echo "找不到 n8n 容器（wonton.instance 标签）"; return 1; }
+  [[ -s "$(marker_file)" ]] || { echo "标记文件为空"; return 1; }
+  marker="$(cat "$(marker_file)")"
+  # 空库时 export:workflow 退出 1、不写文件：列表为空，标记必然找不到，如实报出来。
+  out="$(_n8n_cli "$container" sh -c 'n8n export:workflow --all --output=/tmp/smoke-workflows.json >/dev/null 2>&1; cat /tmp/smoke-workflows.json 2>/dev/null')" ||
+    { echo "导出工作流失败：$out"; return 1; }
+  grep -qF "\"name\":\"$marker\"" <<<"$out" || { echo "工作流列表里没有标记 $marker（$(wc -c <<<"$out") 字节）：$(head -c 200 <<<"$out")"; return 1; }
+}
