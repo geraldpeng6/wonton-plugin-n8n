@@ -72,7 +72,7 @@ x-wonton:
     en: "Like Shortcuts on your phone: chain repetitive jobs into automatic flows, with AI in the loop. Hundreds of ready-made blocks; start from a template."
   icon: icon.svg
   notices: [NOTICE]
-  screenshots: [screenshots/overview.png, screenshots/editor.png, screenshots/credentials.png]
+  screenshots: [screenshots/overview.png, screenshots/workflow-editor.png, screenshots/model-gateway-credential.png]
   author: { name: geraldpeng6 }
   homepage: https://n8n.io
   # 应用（n8n）的许可证：Sustainable Use License（fair-code，非 OSI），SPDX 短标识 SUL-1.0。
