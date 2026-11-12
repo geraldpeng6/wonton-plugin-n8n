@@ -64,12 +64,12 @@ configs:
 x-wonton:
   spec: "0.11"
   id: io.n8n.n8n
-  version: 0.1.0
+  version: 0.1.1
   kind: app
   title: { zh: 工作流自动化（n8n）, en: Workflow Automation (n8n) }
   description:
-    zh: 像手机的“快捷指令”：把到点抓取、整理、通知这些重复的事串成自动流程，AI 也能参与。自带几百种常用服务的积木，照模板就能搭。
-    en: "Like Shortcuts on your phone: chain repetitive jobs into automatic flows, with AI in the loop. Hundreds of ready-made blocks; start from a template."
+    zh: 像手机的“快捷指令”：把到点抓取、整理、通知这些重复的事串成自动流程，AI 也能参与。自带几百种常用服务的积木，照模板就能搭。n8n 用的是 Sustainable Use License，个人和公司内部免费。
+    en: "Like Shortcuts on your phone: chain repetitive jobs into automatic flows, with AI in the loop. Hundreds of ready-made blocks; start from a template. n8n uses the Sustainable Use License — free for personal and internal company use."
   icon: icon.svg
   notices: [NOTICE]
   screenshots: [screenshots/overview.png, screenshots/workflow-editor.png, screenshots/model-gateway-credential.png]
@@ -98,8 +98,8 @@ x-wonton:
 
       Please note: n8n runs your code and reaches any website or service, which is admin-level power; make sure everyone at home knows what it does. External services that must call your flows need a public address, which a deployment behind the gateway cannot offer; manual runs, editor test runs and browser access are unaffected. password-reset mail only arrives if you registered with a real mailbox.
   release_notes:
-    zh: 首个版本：n8n 2.48.1，单容器 SQLite 存储；AI 步骤已接云吞模型网关。
-    en: "First release: n8n 2.48.1 on a single container with SQLite; AI steps come wired to the Wonton model gateway."
+    zh: 说明里写明许可证。
+    en: "The license is now noted in the description."
   setup:
     zh: 第一次打开时创建管理员账号：填一个邮箱和自己定的密码（至少 8 位，含数字和大写字母）。
     en: "On first open, create the admin account: any email plus a password you choose (at least 8 characters, with a digit and an uppercase letter)."
