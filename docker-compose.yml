@@ -3,7 +3,7 @@
 # 没接上网关时不预置；核心接上网关后重建容器会重跑本服务，到时再写。
 services:
   seed-credentials:
-    image: n8nio/n8n:2.48.1@sha256:5e022f23ef9eaac3f51467e021610c218ed7eb5b41a05edb388ef1c8e00e009f
+    image: n8nio/n8n:3.1.0@sha256:6e9f220e9cf0d2f17d3c2371c8d8a6fe6720f99b82a9672afb96bf068cfd04a5
     # 镜像固定以 uid 1000（node）运行，任意 uid 会写不了数据目录（上游不认 PUID/PGID）。
     user: "1000:1000"
     # HOME 是数据目录挂载点：n8n 的用户数据（.n8n）和 npm 缓存（社区节点安装）都落在里面。
@@ -22,7 +22,7 @@ services:
     restart: "no"
 
   n8n:
-    image: n8nio/n8n:2.48.1@sha256:5e022f23ef9eaac3f51467e021610c218ed7eb5b41a05edb388ef1c8e00e009f
+    image: n8nio/n8n:3.1.0@sha256:6e9f220e9cf0d2f17d3c2371c8d8a6fe6720f99b82a9672afb96bf068cfd04a5
     user: "1000:1000"
     depends_on:
       seed-credentials:
