@@ -86,7 +86,7 @@ x-wonton:
 
       打开就是搭流程的画布：左边挑积木（几百种常用服务的现成连接），连起来就是一条流程，照现成模板改改就能用。AI 也能加进流程里干活。
 
-      家里已经在用的能力：流程里的 AI 步骤默认走云吞的模型网关（凭据里已备好“Wonton model gateway”）；想让流程调用家里其他应用，在 MCP Client Tool 节点的 Endpoint URL 填 {{ $env.WONTON_MCP_URL }}。
+      家里已经在用的能力：流程里的 AI 步骤默认走云吞的模型网关（凭据里已备好“Wonton model gateway”）；流程也能用家里其他应用提供的功能，接法见 README。
 
       提醒：n8n 能按流程访问外网、运行代码、调用任何网站和服务，相当于交出管理员权限；装它之前请确认家里人都知道它是干什么的。外部服务要主动回调流程时需要公网地址，网关后面的部署收不到这类回调；手动执行、编辑器里的测试和浏览器主动访问不受影响。找回密码的邮件只有注册时填了真实邮箱才收得到。
     en: |
@@ -94,7 +94,7 @@ x-wonton:
 
       You get a visual canvas: pick blocks on the left (ready-made connections to hundreds of services), wire them into a flow, or start from a template. AI can work inside your flows too.
 
-      What the home already provides: AI steps go through Wonton's model gateway by default (a "Wonton model gateway" credential is prepared for you); to let flows use other home apps, put {{ $env.WONTON_MCP_URL }} into an MCP Client Tool node's Endpoint URL.
+      What the home already provides: AI steps go through Wonton's model gateway by default (a "Wonton model gateway" credential is prepared for you); flows can also use features your other home apps provide — see the README for how to wire that up.
 
       Please note: n8n runs your code and reaches any website or service, which is admin-level power; make sure everyone at home knows what it does. External services that must call your flows need a public address, which a deployment behind the gateway cannot offer; manual runs, editor test runs and browser access are unaffected. password-reset mail only arrives if you registered with a real mailbox.
   release_notes:
